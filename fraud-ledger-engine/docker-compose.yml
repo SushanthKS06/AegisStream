@@ -1,0 +1,101 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # 1. POSTGRESQL (Ledger Database)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: fraud-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: fraud_ledger
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./ledger-worker/database/schema.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fraud_ledger"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # 2. REDIS (Feature Store & Sliding Window Velocity Cache)
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: fraud-redis
+    restart: always
+    command: redis-server --save "" --appendonly no # Optimize for ultra-low latency feature storage (disable persistent writes)
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # 3. REDPANDA (Kafka API Compatible Message Broker)
+  # ---------------------------------------------------------------------------
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v23.3.6
+    container_name: fraud-redpanda
+    restart: always
+    command:
+      - redpanda start
+      - --smp 1 # Limit CPU core usage in dev environment
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr localhost:8082
+      - --rpc-addr 0.0.0.0:33145
+      - --advertise-rpc-addr redpanda:33145
+    ports:
+      - "9092:9092"   # Kafka API External
+      - "29092:29092" # Kafka API Internal
+      - "8082:8082"   # REST Proxy
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster status || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # 4. REDPANDA CONSOLE (GUI for Topic Monitoring and Message Inspection)
+  # ---------------------------------------------------------------------------
+  console:
+    image: docker.redpanda.com/redpandadata/console:v2.4.3
+    container_name: fraud-redpanda-console
+    restart: always
+    entrypoint: /bin/sh
+    command: -c "echo \"$$CONSOLE_CONFIG_FILE\" > /tmp/config.yml; /app/console --config.filepath=/tmp/config.yml"
+    ports:
+      - "8080:8080" # Web UI Console
+    environment:
+      CONSOLE_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda:29092"]
+          schemaRegistry:
+            enabled: false
+        redpanda:
+          adminApi:
+            enabled: true
+            urls: ["http://redpanda:9644"]
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
