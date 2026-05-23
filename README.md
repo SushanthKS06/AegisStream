@@ -1,4 +1,4 @@
-# 🛡️ AegisStream: Real-Time Fraud Detection & Distributed Ledger Engine
+# AegisStream: Real-Time Fraud Detection & Distributed Ledger Engine
 
 [![Go Version](https://img.shields.io/badge/Go-1.21%2B-00ADD8?style=for-the-badge&logo=go)](https://golang.org)
 [![Python Version](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python)](https://python.org)
@@ -14,7 +14,7 @@ It synthesizes modern distributed systems designs—including event-driven strea
 
 ---
 
-## 📐 System Architecture
+## System Architecture
 
 The following diagram illustrates the lifecycle of a transaction through **AegisStream**, tracing how data flows through ingestion, state enrichment, ML inference, classification, and final ledger auditing.
 
@@ -27,20 +27,20 @@ flowchart TD
     classDef worker fill:#bfb,stroke:#333,stroke-width:2px;
     classDef storage fill:#ddd,stroke:#333,stroke-width:2px;
 
-    Client[💻 Client / POS] -->|1. POST /charge| IngestionAPI[🚀 Ingestion API <br/> Go / Fiber]
+    Client[Client / POS] -->|1. POST /charge| IngestionAPI[Ingestion API <br/> Go / Fiber]
     
     subgraph Event Broker [Redpanda Kafka-Compatible Broker]
-        RawTopic[📥 raw-transactions]
-        ApproveTopic[✅ approved-transactions]
-        FlagTopic[⚠️ flagged-transactions]
+        RawTopic[raw-transactions]
+        ApproveTopic[approved-transactions]
+        FlagTopic[flagged-transactions]
     end
     
     IngestionAPI -->|2. Publish| RawTopic
     
     subgraph Stream Processing Pipeline
-        Processor[🔄 Stream Processor <br/> Python / Confluent Kafka]
-        FeatureStore[(🔴 Redis ZSET <br/> Velocity Store)]
-        MLServing[🧠 ML Inference API <br/> FastAPI]
+        Processor[Stream Processor <br/> Python / Confluent Kafka]
+        FeatureStore[(Redis ZSET <br/> Velocity Store)]
+        MLServing[ML Inference API <br/> FastAPI]
     end
     
     RawTopic -->|3. Consume| Processor
@@ -52,8 +52,8 @@ flowchart TD
     TargetTopic -->|FLAG| FlagTopic
     
     subgraph Final Ledger Settlement
-        LedgerWorker[💼 Ledger Worker <br/> Go / segmentio]
-        Postgres[(🐘 PostgreSQL <br/> Double-Entry Ledger)]
+        LedgerWorker[Ledger Worker <br/> Go / segmentio]
+        Postgres[(PostgreSQL <br/> Double-Entry Ledger)]
     end
     
     ApproveTopic -->|7. Consume| LedgerWorker
@@ -68,11 +68,11 @@ flowchart TD
 
 ---
 
-## ⚡ Core Components
+## Core Components
 
 The engine is divided into four highly focused services, each running within a dedicated layer:
 
-### 1. 🚀 Ingestion API (`ingestion-api`)
+### 1.Ingestion API (`ingestion-api`)
 * **Technology Stack**: Go, Fiber Web Framework, `confluent-kafka-go`
 * **Role**: The high-throughput gateway. It exposes a low-overhead REST endpoint to receive incoming payment charges.
 * **Responsibilities**:
@@ -81,7 +81,7 @@ The engine is divided into four highly focused services, each running within a d
   * Publishes events to the Redpanda `raw-transactions` topic with high durability guarantees.
   * Delivers sub-millisecond response times under heavy concurrent stress.
 
-### 2. 🔄 Stream Processor (`stream-processor`)
+### 2.Stream Processor (`stream-processor`)
 * **Technology Stack**: Python, `confluent-kafka`, `redis-py`, `httpx`
 * **Role**: The central nervous system of the streaming pipeline.
 * **Responsibilities**:
@@ -91,7 +91,7 @@ The engine is divided into four highly focused services, each running within a d
   * **Defensive Fallback Rules**: Implements fail-safe heuristics (e.g., auto-flagging transactions > $500.0) if the ML Serving API experiences downtime or high-latency timeouts.
   * Routes the enriched payload to either `approved-transactions` or `flagged-transactions` based on the classification.
 
-### 3. 🧠 ML Serving Engine (`ml-serving`)
+### 3.ML Serving Engine (`ml-serving`)
 * **Technology Stack**: Python, FastAPI, Pydantic, Uvicorn
 * **Role**: Microsecond-latency machine learning inference service.
 * **Responsibilities**:
@@ -102,7 +102,7 @@ The engine is divided into four highly focused services, each running within a d
   * Executes scoring logic under a **10ms target SLA**.
   * Classifies transactions exceeding a `0.85` threshold as `FLAG`, otherwise `APPROVE`.
 
-### 4. 💼 Ledger Worker (`ledger-worker`)
+### 4.Ledger Worker (`ledger-worker`)
 * **Technology Stack**: Go, `database/sql`, `segmentio/kafka-go`, PostgreSQL
 * **Role**: Transactional settlement and immutable auditing.
 * **Responsibilities**:
@@ -114,7 +114,7 @@ The engine is divided into four highly focused services, each running within a d
 
 ---
 
-## 🏛️ Ledger Database Schema
+## Ledger Database Schema
 
 The system uses an **immutable, double-entry financial ledger** modeled in PostgreSQL. Floating-point rounding issues are completely eliminated using strict `NUMERIC(20, 4)` types.
 
@@ -146,7 +146,7 @@ For every successfully approved transaction of **$N**, the Ledger Worker atomica
 * **DEBIT** (Money Leaving): Deducted from Payer Account (`balance_after = balance_before - N`).
 * **CREDIT** (Money Entering): Added to Payer Merchant/Treasury (`balance_after = balance_before + N`).
 
-### 👥 Pre-seeded Sandbox Accounts
+### Pre-seeded Sandbox Accounts
 The database initializer automatically seeds the PostgreSQL instance with:
 * `merchant_treasury`: System treasury receiving all processed funds ($1,000,000.00 USD).
 * `user_alice`: $5,000.00 USD
@@ -156,7 +156,7 @@ The database initializer automatically seeds the PostgreSQL instance with:
 
 ---
 
-## 🏎️ Production Performance Engineering
+## Production Performance Engineering
 
 * **Ultra-Low Latency Feature Aggregation**: Redis uses a pipeline context running `ZADD`, `ZREMRANGEBYSCORE`, `ZRANGE`, and `EXPIRE` in a **single Network Round Trip (RTT = 1)** using Redis Sorted Sets (ZSET). Sliding windows prune dynamically (removing elements >5 mins old) with a rolling TTL to avoid memory leaks.
 * **Lexicographical Deadlock Avoidance**: Database accounts are queried for locks (`FOR UPDATE`) based on `min(PayerID, MerchantID)` and `max(PayerID, MerchantID)`. This guarantees that concurrent thread executions locking the same accounts never cycle, eliminating database deadlocks.
@@ -165,37 +165,37 @@ The database initializer automatically seeds the PostgreSQL instance with:
 
 ---
 
-## 🛠️ Local Development & Quick Start
+## Local Development & Quick Start
 
 The control panel relies on a robust `Makefile` executing inside **PowerShell**.
 
-### 📋 Prerequisites
+### Prerequisites
 * Docker & Docker Compose
 * Go 1.21+
 * Python 3.10+
 * PowerShell (configured as default terminal shell in `Makefile`)
 
-### 🕹️ Control Panel Cheatsheet
+### Control Panel Cheatsheet
 
 | Command | Action | Description |
 | :--- | :--- | :--- |
-| `make infra-up` | 🚀 **Infrastructure Up** | Boot Postgres, Redis, Redpanda, and Redpanda Console |
-| `make create-topics` | 📂 **Setup Topics** | Pre-create `raw-transactions`, `approved-transactions`, `flagged-transactions` |
-| `make build-all` | 🛠️ **Build Go Services** | Compile Go binary executables for Ingestion and Ledger |
-| `make run-ingestion` | 🔌 **Run Ingestion API** | Start the Fiber Ingestion HTTP web server locally (Port: `8081`) |
-| `make run-ml` | 🧠 **Run ML Serving** | Start the FastAPI ML Inference server locally (Port: `8000`) |
-| `make run-processor` | 🔄 **Run Stream Processor** | Run the Python streaming consumer-producer loops |
-| `make run-ledger` | 💼 **Run Ledger Worker** | Run the Go database ledger transactional writer |
-| `make seed-db` | 🌱 **Reset & Seed DB** | Wipes existing tables and re-seeds sandbox test accounts |
-| `make test-charge` | 🧪 **Test Charge Request** | Dispatches a mock transaction from `user_alice` for `$450.50` |
-| `make db-shell` | 🐘 **Postgres Shell** | Enter an interactive Postgres `psql` console |
-| `make redis-shell` | 🔴 **Redis Shell** | Enter an interactive Redis console |
-| `make rpk-status` | 🐼 **Redpanda Status** | Display active Redpanda brokers and cluster metrics |
-| `make infra-down` | 🧹 **Tear Down** | Stop and purge all local docker containers and volume caches |
+| `make infra-up` | **Infrastructure Up** | Boot Postgres, Redis, Redpanda, and Redpanda Console |
+| `make create-topics` | **Setup Topics** | Pre-create `raw-transactions`, `approved-transactions`, `flagged-transactions` |
+| `make build-all` | **Build Go Services** | Compile Go binary executables for Ingestion and Ledger |
+| `make run-ingestion` | **Run Ingestion API** | Start the Fiber Ingestion HTTP web server locally (Port: `8081`) |
+| `make run-ml` | **Run ML Serving** | Start the FastAPI ML Inference server locally (Port: `8000`) |
+| `make run-processor` | **Run Stream Processor** | Run the Python streaming consumer-producer loops |
+| `make run-ledger` | **Run Ledger Worker** | Run the Go database ledger transactional writer |
+| `make seed-db` | **Reset & Seed DB** | Wipes existing tables and re-seeds sandbox test accounts |
+| `make test-charge` | **Test Charge Request** | Dispatches a mock transaction from `user_alice` for `$450.50` |
+| `make db-shell` | **Postgres Shell** | Enter an interactive Postgres `psql` console |
+| `make redis-shell` | **Redis Shell** | Enter an interactive Redis console |
+| `make rpk-status` | **Redpanda Status** | Display active Redpanda brokers and cluster metrics |
+| `make infra-down` | **Tear Down** | Stop and purge all local docker containers and volume caches |
 
 ---
 
-## 🚀 Step-by-Step Run Book
+## Step-by-Step Run Book
 
 Follow this checklist to boot and verify the system in your local sandbox:
 
@@ -251,7 +251,7 @@ make test-charge
 
 ---
 
-## 🌟 Technologies Used
+## Technologies Used
 * **Languages**: Go (Golang), Python
 * **Infrastructure**: Redpanda (Apache Kafka compatible), PostgreSQL 16, Redis 7
 * **Web & APIs**: Fiber (Go), FastAPI (Python), Uvicorn, HTTPX
